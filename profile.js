@@ -4,35 +4,57 @@
  * @copyright   (c) 2015 Reydel Leon Machado
  * @license     All rights reserved
  */
-"use strict";
+'use strict';
 
-var http         = require("http"),
-    https        = require("https"),
-    eventEmmiter = require("events").EventEmmiter,
-    util         = require("util");
+var http         = require('http'),
+    https        = require('https'),
+    request,
+    profile;
 
+const EventEmitter = require('events').EventEmitter,
+      util         = require('util');
+
+/**
+ * An EventEmitter to get a Treehouse students profile.
+ * @param username
+ * @constructor
+ */
 function Profile(username) {
     this.username = username;
 
-    var rawJSONData,
-        request,
-        responseBody = "";
+    EventEmitter.call(this);
+    var profileEmitter = this;
 
-    request = http.get("https://teamtreehouse.com/reydelleonmachado", function (res) {
-        res.on("data", function (chunk) {
+    request = https.get('https://teamtreehouse.com/' + username + '.json', function (res) {
+        var responseBody = '';
+
+        if (res.statusCode !== 200) {
+            request.abort();
+
+            profileEmitter.emit('error', new Error('There was a problem while trying to get the profile. [' + http.STATUS_CODES[res.statusCode] + ']'));
+        }
+
+        res.on('data', function (chunk) {
             responseBody += chunk;
+            profileEmitter.emit('data', chunk);
         });
 
-        res.on("end", function () {
-            try {
-                rawJSONData = JSON.parse(responseBody);
+        res.on('end', function () {
+            if (res.statusCode === 200) {
+                try {
+                    profile = JSON.parse(responseBody);
 
-                console.log(rawJSONData.name)
-            } catch (e) {
-                console.error(e.message);
+                    profileEmitter.emit('end', profile);
+                } catch (e) {
+                    profileEmitter.emit('error', e)
+                }
             }
+        }).on('error', function (error) {
+            profileEmitter.emit('error', error)
         })
     });
 }
 
-module.exports.Profile = Profile;
+util.inherits(Profile, EventEmitter);
+
+module.exports = Profile;
